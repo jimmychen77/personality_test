@@ -184,7 +184,7 @@
 
         <div id="page-mbti-q" class="page">
             <div class="progress-info">
-                <span class="q-num">题目 <span id="mbti-num">1</span> / <span id="mbti-total">48</span></span>
+                <span class="q-num">题目 <span id="mbti-num">1</span> / <span id="mbti-total">56</span></span>
                 <span class="q-consistency" id="mbti-progress-pct">0%</span>
             </div>
             <div class="progress"><div class="progress-bar" id="mbti-prog"></div></div>
@@ -502,7 +502,7 @@
 
         <div id="page-value-q" class="page">
             <div class="progress-info">
-                <span class="q-num">题目 <span id="value-num">1</span> / <span id="value-total">40</span></span>
+                <span class="q-num">题目 <span id="value-num">1</span> / <span id="value-total">48</span></span>
                 <span class="q-consistency" id="value-progress-pct">0%</span>
             </div>
             <div class="progress"><div class="progress-bar" id="value-prog"></div></div>
@@ -619,7 +619,7 @@
     // ========================================================================
     // 1. MBTI — 5点李克特量表 + 认知功能 + PCI偏好清晰度
     // 题项改进: 使用行为导向描述语（基于MBTI Form M理论框架）
-    //           每个维度6题，总计48题，避免社会赞许性偏差
+    //           每个维度6题+8道反向一致性题，总计56题，避免社会赞许性偏差
     // ========================================================================
     function mbtiItem(q, dim) { return {q:q, dim:dim, opts:["完全不同意","比较不同意","中立","比较同意","完全同意"]}; }
 
@@ -1160,7 +1160,7 @@
     };
 
     // ========================================================================
-    // 5. 价值观 — 40题 (基于Super职业价值观理论)
+    // 5. 价值观 — 48题 (40题+8道反向题，基于Super职业价值观理论)
     // 题项改进: 每项价值唯一对应一题，无重复
     //           使用"对我很重要"陈述句而非疑问句
     //           涵盖内在/外在/社会三类动机
@@ -1691,12 +1691,14 @@
 
     function calcHolland() {
         var sc = {R:0,I:0,A:0,S:0,E:0,C:0};
+        var counts = {R:0,I:0,A:0,S:0,E:0,C:0};
         for(var i=0;i<hollandQ.length;i++) {
             var ans = answers.holland[i];
             if(ans === undefined) continue;
             sc[hollandQ[i].t] += ans;
+            counts[hollandQ[i].t]++;
         }
-        for(var k in sc) sc[k] = Math.round(sc[k]/8/4*100);
+        for(var k in sc) sc[k] = Math.round(sc[k]/(counts[k]||1)/4*100);
         var sorted = [];
         for(var k in sc) sorted.push([k,sc[k]]);
         sorted.sort(function(a,b){return b[1]-a[1]});
@@ -1773,7 +1775,7 @@
             counts[big5Q[i].dim]++;
         }
         function sten(rawScore, mean, sd) {
-            var s = Math.round(5 + 2*(rawScore-mean)/sd);
+            var s = Math.round(5.5 + 2*(rawScore-mean)/sd);
             return Math.max(1, Math.min(10, s));
         }
         var norms = {O:{m:26,sd:8}, C:{m:28,sd:8}, E:{m:24,sd:9}, A:{m:28,sd:8}, N:{m:22,sd:9}};
@@ -1882,20 +1884,25 @@
     // 价值观计算
     // ========================================================================
     function calcValue() {
-        var sc = {};
+        var valueData = {};
         for(var i=0;i<valueQ.length;i++) {
             var ans = answers.value[i];
             if(ans === undefined) continue;
             var t = valueQ[i].t;
-            // 反向题: 反转分值后归入正向值
+            // 反向题: 反转分值
             var key = t;
             var score = ans;
             if(t.indexOf("_rev") >= 0) {
                 key = t.replace("_rev","");
                 score = 4 - ans;
             }
-            if(!sc[key]) sc[key] = 0;
-            sc[key] += score;
+            if(!valueData[key]) valueData[key] = {sum:0, count:0};
+            valueData[key].sum += score;
+            valueData[key].count++;
+        }
+        var sc = {};
+        for(var k in valueData) {
+            sc[k] = valueData[k].sum / valueData[k].count;
         }
         var sorted = [];
         for(var k in sc) sorted.push([k,sc[k]]);
@@ -2160,7 +2167,7 @@
             "快递员":{suit:["zk"],gender:"m"},"叉车司机":{suit:["zk"],gender:"m"},"焊工":{suit:["zk"],gender:"m"},
             "电工":{suit:["zk"],gender:"m"},"钳工":{suit:["zk"],gender:"m"},"货车司机":{suit:["zk"],gender:"m"},
             "质量检验员":{suit:["zk"]},"数据录入员":{suit:["zk"]},"物业客服":{suit:["dx","zk"]},
-            "实验室样品管理员":{suit:["dx","zk"]},"报关员":{suit:["dx","zk"]},"跟单员":{suit:["dx","zk"]},
+            "实验室样品管理员":{suit:["dx","zk"]},"报关员/单证员":{suit:["dx","zk"]},"跟单员":{suit:["dx","zk"]},
             // 文职不限性别
             "公务员":{gender:""},"行政专员":{gender:""},"档案管理员":{gender:""}
         };
@@ -2264,6 +2271,11 @@
         if(missing.length>0) statusText += " | 未完成: " + missing.join("、") + "（综合分析将使用默认值代替）";
         else statusText += " | 全部完成，推荐准确性已达最优！";
         if(statusEl) statusEl.innerHTML = statusText;
+
+        if(done.length === 0) {
+            resultDiv.innerHTML = '<div class="warn-box" style="text-align:center;padding:40px;"><h4 style="font-size:18px;margin-bottom:12px;">暂无测评数据</h4><p style="font-size:15px;line-height:1.8;">请先完成任意一项测评（MBTI、DISC、霍兰德、大五人格、价值观）<br>再进行综合职业倾向分析，以获得有意义的推荐结果。</p></div>';
+            return;
+        }
 
         // 人群筛选: 匹配 suit 和 gender
         var filteredDB = [];
